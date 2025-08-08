@@ -52,4 +52,41 @@ try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     DOCUMENT_IDS = st.secrets["DOCUMENT_IDS"]
     servicio_drive = autenticar_y_obtener_servicio_drive()
-    contexto_docs = obtener_
+    contexto_docs = obtener_contenido_documentos(servicio_drive, DOCUMENT_IDS)
+except KeyError as e:
+    st.error(f"Falta un secreto en la configuración de Streamlit. Revisa la clave: {e}")
+    st.stop()
+
+if contexto_docs:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        st.error(f"Error al configurar la API de Gemini: {e}")
+        st.stop()
+
+    pregunta_usuario = st.text_input("Haz tu pregunta aquí:", key="pregunta")
+
+    if pregunta_usuario:
+        prompt_final = f"""
+        Eres "B-One", el colega robot más enrollado. Tu tono es informal, gamberro y positivo. Usa emojis. 😉
+        Basa tus respuestas ÚNICAMENTE en la info de los documentos.
+        Si no sabes la respuesta, di: "Uups, sobre eso no me han pasado el chivatazo. 😅"
+
+        CONTEXTO:
+        {contexto_docs}
+
+        PREGUNTA:
+        {pregunta_usuario}
+
+        RESPUESTA DE B-ONE:
+        """
+        
+        with st.spinner("B-One está buscando en sus archivos... 🧠"):
+            response = model.generate_content(prompt_final)
+            respuesta_texto = response.text
+            
+            if "no me han pasado el chivatazo" in respuesta_texto:
+                registrar_pregunta_sin_respuesta(pregunta_usuario)
+
+            st.markdown(respuesta_texto)
